@@ -1,4 +1,4 @@
-const { MongoClient, ObjectId  } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -50,8 +50,15 @@ app.get('/fetch-todos', async (req, res) => {
     const db = client.db('TODOS');
     const todoCollection = db.collection('TodoList');
 
-    // Fetch all todos from the collection
-    const todos = await todoCollection.find().toArray();
+    // Fetch only todos where delete is not true and completed is not true
+    const todos = await todoCollection.find({
+      $and: [
+        { delete: { $ne: true } },   // Not equal to true
+        { completed: { $ne: true } } // Not equal to true
+      ]
+    }).toArray();
+    
+    console.log(todos);
 
     // Close the MongoDB connection
     client.close();
@@ -64,18 +71,19 @@ app.get('/fetch-todos', async (req, res) => {
   }
 });
 
+
 // Endpoint to update todo text
 app.post('/update-todo-text', async (req, res) => {
   try {
     const { id, text } = req.body;
-
+    console.log(`new text value is: ${text} for the doc which has id: ${id}`)
     // Establish MongoDB connection
     const client = await MongoClient.connect(MongoClinetString);
     const db = client.db('TODOS');
     const todoCollection = db.collection('TodoList');
 
     // Update the text for the specified todo
-    await todoCollection.updateOne({ _id: ObjectId(id) }, { $set: { text } });
+    await todoCollection.updateOne({ _id: new ObjectId(id) }, { $set: { text } });
 
     // Close the MongoDB connection
     client.close();
@@ -87,18 +95,63 @@ app.post('/update-todo-text', async (req, res) => {
   }
 });
 
-// Endpoint to delete a todo
-app.post('/delete-todo', async (req, res) => {
+// completing todos
+app.post('/complete-task', async (req, res) => {
   try {
-    const { id } = req.body;
+    const id = req.body.id;
+    console.log(`id for completing the todo is: ${id}`);
 
     // Establish MongoDB connection
     const client = await MongoClient.connect(MongoClinetString);
     const db = client.db('TODOS');
     const todoCollection = db.collection('TodoList');
 
-    // Delete the specified todo
-    await todoCollection.deleteOne({ _id: ObjectId(id) });
+    // Update the specified todo's 'delete' field to true
+    const result = await todoCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { completed: true } }
+    );
+
+    // Check if the update was successful
+    if (result.modifiedCount === 1) {
+      console.log(`Todo with id ${id} marked as completed.`);
+    } else {
+      console.log(`Todo with id ${id} not found or not updated.`);
+    }
+
+    // Close the MongoDB connection
+    client.close();
+
+    res.status(200).send('Todo completed successfully');
+  }
+  catch (error) {
+    console.error('Error completing todo:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
+
+// Endpoint to delete a todo
+app.post('/delete-todo', async (req, res) => {
+  try {
+    const { id } = req.body;
+    console.log(`Todo id to be deleted is: ${id}`);
+    // Establish MongoDB connection
+    const client = await MongoClient.connect(MongoClinetString);
+    const db = client.db('TODOS');
+    const todoCollection = db.collection('TodoList');
+
+    // Update the specified todo's 'delete' field to true
+    const result = await todoCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { delete: true } }
+    );
+
+    // Check if the update was successful
+    if (result.modifiedCount === 1) {
+      console.log(`Todo with id ${id} marked as deleted.`);
+    } else {
+      console.log(`Todo with id ${id} not found or not updated.`);
+    }
 
     // Close the MongoDB connection
     client.close();
